@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisConstants;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +31,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     public Result queryById(long id) {
-        String key = RedisConstants.CACHE_SHOP_KEY + id;
+        String key = RedisConstants.CACHE_SHOP_KEY;
 
         // 1.从redis中获取数据
         String shopJson = stringRedisTemplate.opsForValue().get(key);
@@ -40,18 +41,39 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             return Result.ok(shopJson);
         }
 
+        // 命中redis中的空值，返回错误
+        if (shopJson != null) {
+            return Result.fail("店铺不存在");
+        }
+
         // 3.如果redis中没有数据，从数据库中获取数据
         Shop shop = getById(id);
 
         // 4.如果数据库中没有数据，返回失败
         if (shop == null) {
+            // 将空值写入redis中
+            stringRedisTemplate.opsForValue().set(key+id,"",RedisConstants.CACHE_SHOP_NULL_EXPIRE,TimeUnit.MINUTES);
             return Result.fail("商铺不存在");
         }
 
         // 5.存在，将数据写入redis
-        stringRedisTemplate.opsForValue().set(key,shop.toString(),RedisConstants.CACHE_SHOP_EXPIRE, TimeUnit.MINUTES);
+        stringRedisTemplate.opsForValue().set(key+id,shop.toString(),RedisConstants.CACHE_SHOP_EXPIRE, TimeUnit.MINUTES);
 
         // 6.返回数据
         return Result.ok(shop);
+    }
+
+    @Override
+    @Transactional
+    public Result update(Shop shop) {
+        Long id = shop.getId();
+        if (id == null) {
+            return Result.fail("店铺不能为空！");
+        }
+        // 1.更新数据库
+        updateById(shop);
+        // 2.删除redis缓存
+        stringRedisTemplate.delete(RedisConstants.CACHE_SHOP_KEY+id);
+        return Result.ok();
     }
 }
