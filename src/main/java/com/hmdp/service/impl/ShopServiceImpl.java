@@ -115,7 +115,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     }
 
     public Shop queryWithThough(Long id){
-        String key = CACHE_SHOP_KEY;
+        String key = CACHE_SHOP_KEY+id;
 
         // 1.从redis中获取数据
         String shopJson = stringRedisTemplate.opsForValue().get(key);
@@ -136,12 +136,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         // 4.如果数据库中没有数据，返回失败
         if (shop == null) {
             // 将空值写入redis中
-            stringRedisTemplate.opsForValue().set(key+id,"", CACHE_SHOP_NULL_EXPIRE,TimeUnit.MINUTES);
+            stringRedisTemplate.opsForValue().set(key,"", CACHE_SHOP_NULL_EXPIRE,TimeUnit.MINUTES);
             return null;
         }
 
         // 5.存在，将数据写入redis
-        stringRedisTemplate.opsForValue().set(key+id,shop.toString(), CACHE_SHOP_EXPIRE, TimeUnit.MINUTES);
+        stringRedisTemplate.opsForValue().set(key,JSONUtil.toJsonStr(shop), CACHE_SHOP_EXPIRE, TimeUnit.MINUTES);
 
         // 6.返回数据
         return shop;
